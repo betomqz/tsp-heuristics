@@ -8,7 +8,7 @@ class NearestNeigbour:
         self.res = None
         self.cost = None
 
-    def solve(self, start):
+    def solve(self, start, verbose=True):
         '''
         Función con la heurística propiamente. Toma un punto de partida
         y resuelve la instancia del TSP utilizada al momento de crear.
@@ -36,10 +36,11 @@ class NearestNeigbour:
 
         self.res.append(start)
         self.cost += self.instance[current][start]
-        print(f"Solución encontrada con costo: {self.cost}")
+        if verbose:
+            print(f"Solución encontrada con costo: {self.cost}")
     
 class GenAlgo:
-    def __init__(self, instance, pop_size=50, mutation_rate=0.01, num_gens=1000, tournament_size=5):
+    def __init__(self, instance, pop_size=50, mutation_rate=0.05, num_gens=2000, tournament_size=5):
         self.instance = instance
         self.res = None
         self.cost = None
@@ -49,7 +50,7 @@ class GenAlgo:
         self.tournament_size = tournament_size
         self.__population = None
     
-    def solve(self):
+    def solve(self, verbose=True):
         '''
         Resuelve el problema del TSP con un algoritmo genético
         '''
@@ -66,11 +67,15 @@ class GenAlgo:
                     child2 = self.__mutate(child2)
                 new_population.extend([child1, child2])
             self.__population = new_population
+            if gen % 10 == 0 and verbose:
+                best_individual = min(self.__population, key=lambda x: utils.calc_cost_gen(x, self.instance))
+                print(f"Generación {gen}: {utils.calc_cost_gen(best_individual, self.instance)}")
 
         best_individual = min(self.__population, key=lambda x: utils.calc_cost_gen(x, self.instance))
         self.res = best_individual + [best_individual[0]] # Regresar al inicio
         self.cost = utils.calc_cost_gen(best_individual, self.instance)
-        print(f"Solución encontrada con costo: {self.cost}")
+        if verbose:
+            print(f"Solución encontrada con costo: {self.cost}")
 
     def __init_pop(self):
         '''
