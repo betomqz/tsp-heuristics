@@ -19,6 +19,17 @@ def calc_cost(path, distances):
 
     return cost
 
+# Función para calcular el costo de una solución en el algoritmo genético. Es
+# igual que la anterior, pero incluye el costo de regresar (i.e. no supone que
+# el camino está completo)
+def calc_cost_gen(path, distances):
+    cost = 0
+    for i in range(len(path)-1):
+        cost += distances[path[i], path[i+1]]
+
+    cost += distances[path[-1], path[0]]
+    return cost
+
 # Función para graficar las soluciones al problema
 def plot_sol(puntos, path):
     x, y = puntos[path].T
