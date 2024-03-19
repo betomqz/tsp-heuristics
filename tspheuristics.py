@@ -1,6 +1,68 @@
 import numpy as np
 import random
 import utils
+from mip import Model, xsum, minimize, BINARY
+from itertools import product
+
+class LinProg:
+    '''
+    Aunque no es una heurística, se incluye aquí el código para resolver el
+    problema con una formulación de programación lineal. El código se adapta
+    de https://docs.python-mip.com/en/latest/examples.html#the-traveling-salesman-problem
+    '''
+
+    def __init__(self, instance):
+        self.instance = instance
+        self.res = None
+        self.cost = None
+    
+    def solve(self, verbose=True):
+        # number of nodes and list of vertices
+        n = len(self.instance)
+        V = set(range(len(self.instance)))
+
+        model = Model()
+
+        # binary variables indicating if arc (i,j) is used on the route or not
+        x = [[model.add_var(var_type=BINARY) for j in V] for i in V]
+
+        # continuous variable to prevent subtours: each city will have a
+        # different sequential id in the planned route except the first one
+        y = [model.add_var() for i in V]
+
+        # objective function: minimize the distance
+        model.objective = minimize(xsum(self.instance[i][j]*x[i][j] for i in V for j in V))
+
+        # constraint : leave each city only once
+        for i in V:
+            model += xsum(x[i][j] for j in V - {i}) == 1
+
+        # constraint : enter each city only once
+        for i in V:
+            model += xsum(x[j][i] for j in V - {i}) == 1
+
+        # subtour elimination
+        for (i, j) in product(V - {0}, V - {0}):
+            if i != j:
+                model += y[i] - (n+1)*x[i][j] >= y[j]-n
+
+        # optimizing
+        model.optimize()
+
+        # checking if a solution was found
+        if model.num_solutions:
+            self.cost = model.objective_value
+
+            nc = 0
+            self.res = [0]
+            while True:
+                nc = [i for i in V if x[nc][i].x >= 0.99][0]
+                self.res.append(nc)
+                if nc == 0:
+                    break
+            if verbose:
+                print(f"Solución encontrada con costo: {self.cost}")
+
 
 class NearestNeigbour:
     def __init__(self, instance):

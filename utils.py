@@ -36,7 +36,7 @@ def plot_sol(puntos, path):
     names = np.array(range(len(puntos)))
     names2 = names[path]
 
-    fig, ax = plt.subplots()    
+    fig, ax = plt.subplots(figsize=(5,5))    
     ax.plot(x,y,'-o')
     ax.axis('equal')
     
