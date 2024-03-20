@@ -17,42 +17,44 @@ class LinProg:
         self.cost = None
     
     def solve(self, verbose=True):
-        # number of nodes and list of vertices
+        # número de nodos y lista de vértices
         n = len(self.instance)
         V = set(range(len(self.instance)))
 
         model = Model()
 
-        # binary variables indicating if arc (i,j) is used on the route or not
+        # variables binarias para indicar si el camino (i,j) se usa en la ruta
         x = [[model.add_var(var_type=BINARY) for j in V] for i in V]
 
-        # continuous variable to prevent subtours: each city will have a
-        # different sequential id in the planned route except the first one
+        # variables para prevenir subtours: cada ciudad tendrá una
+        # secuencia diferente de ids en la ruta, excepto la primera        
         y = [model.add_var() for i in V]
 
-        # objective function: minimize the distance
+        # definir función objetivo
         model.objective = minimize(xsum(self.instance[i][j]*x[i][j] for i in V for j in V))
 
-        # constraint : leave each city only once
+        # que solamente un camino salga de una ciudad
         for i in V:
             model += xsum(x[i][j] for j in V - {i}) == 1
 
-        # constraint : enter each city only once
+        # que solamente llegue un camino a una ciudad
         for i in V:
             model += xsum(x[j][i] for j in V - {i}) == 1
 
-        # subtour elimination
+        # eliminar subtours
         for (i, j) in product(V - {0}, V - {0}):
             if i != j:
                 model += y[i] - (n+1)*x[i][j] >= y[j]-n
 
-        # optimizing
+        # resolver el problema
         model.optimize()
 
-        # checking if a solution was found
+        # revisar si se encuentra una solución
         if model.num_solutions:
+            # almacenar costo de la solución
             self.cost = model.objective_value
 
+            # extraer el camino de solución
             nc = 0
             self.res = [0]
             while True:
@@ -65,6 +67,9 @@ class LinProg:
 
 
 class NearestNeigbour:
+    '''
+    Heurística del vecino más cercano para resolver el TSP.
+    '''
     def __init__(self, instance):
         self.instance = instance
         self.res = None
@@ -78,30 +83,35 @@ class NearestNeigbour:
         '''
         n = len(self.instance)
         visited = [False] * n
+        # Empezar en la ciudad que se indica
         self.res = [start]
-        visited[start] = True
-
+        visited[start] = True        
         current = start
         self.cost = 0
 
+        # mientras no haya recorrido todas las ciudades
         while len(self.res) < n:
             nearest_city = None
             min_distance = np.inf # La distancia mínima empieza en infinito
             for next in range(n):
+                # Si encuentra una ciudad que está más cerca
                 if not visited[next] and self.instance[current][next] < min_distance:
                     nearest_city = next
                     min_distance = self.instance[current][next]
-            self.res.append(nearest_city)
+            self.res.append(nearest_city) # almacenar ciudad
             visited[nearest_city] = True
             self.cost += min_distance
             current = nearest_city
 
-        self.res.append(start)
-        self.cost += self.instance[current][start]
+        self.res.append(start) # regresar al principio
+        self.cost += self.instance[current][start] # agregar costo de regresar
         if verbose:
             print(f"Solución encontrada con costo: {self.cost}")
     
 class GenAlgo:
+    '''
+    Metaheurística de un algoritmo genético para resolver el TSP.
+    '''
     def __init__(self, instance, pop_size=50, mutation_rate=0.05, num_gens=2000, tournament_size=5):
         self.instance = instance
         self.res = None
@@ -114,25 +124,31 @@ class GenAlgo:
     
     def solve(self, verbose=True):
         '''
-        Resuelve el problema del TSP con un algoritmo genético
+        Resuelve el problema del TSP con un algoritmo genético. Utiliza los parámetros que se definieron
+        al inicializar la clase.
         '''
-        self.__init_pop()
-        for gen in range(self.num_gens):
-            new_population = []
+        self.__init_pop() # inicializar población
+        for gen in range(self.num_gens): 
+            new_population = [] # la nueva población empieza vacía
             for _ in range(self.pop_size // 2):
-                parent1, parent2 = self.__select_parents()
+                parent1, parent2 = self.__select_parents() # seleccionar a los padres
+                # Crear a los hijos
                 child1 = self.__crossover(parent1, parent2)
                 child2 = self.__crossover(parent2, parent1)
+                # Mutar a los hijos si es necesario
                 if random.random() < self.mutation_rate:
                     child1 = self.__mutate(child1)
                 if random.random() < self.mutation_rate:
                     child2 = self.__mutate(child2)
+
+                # Insertar a los hijos en la población 
                 new_population.extend([child1, child2])
             self.__population = new_population
             if gen % 10 == 0 and verbose:
                 best_individual = min(self.__population, key=lambda x: utils.calc_cost_gen(x, self.instance))
                 print(f"Generación {gen}: {utils.calc_cost_gen(best_individual, self.instance)}")
 
+        # escoger al mejor individuo
         best_individual = min(self.__population, key=lambda x: utils.calc_cost_gen(x, self.instance))
         self.res = best_individual + [best_individual[0]] # Regresar al inicio
         self.cost = utils.calc_cost_gen(best_individual, self.instance)
@@ -141,7 +157,7 @@ class GenAlgo:
 
     def __init_pop(self):
         '''
-        Función para inicializar la población.
+        Función para inicializar la población. Inicializa aleatoriamente.
         '''
         self.__population = []
         num_cities = len(self.instance)
@@ -151,14 +167,20 @@ class GenAlgo:
             self.__population.append(individual)
 
     def __mutate(self, individual):
-        # Swap mutation
+        '''
+        Función para mutar a un individuo. Escoge dos ciudades aleatoriamente
+        y las intercambia.
+        '''
         idx1, idx2 = random.sample(range(len(individual)), 2)
         individual[idx1], individual[idx2] = individual[idx2], individual[idx1]
         return individual
     
     def __crossover(self, parent1, parent2):
-        # Order crossover (OX1)
-        # No estoy seguro de que genere una solución válida tbh
+        '''
+        Función para generar un individuo dados dos padres. Hace un OX
+        crossover: toma un pedazo del primer padre y luego llena los 
+        huecos como haga falta.
+        '''
         child = [-1] * len(parent1)
         start, end = sorted(random.sample(range(len(parent1)), 2))
         for i in range(start, end + 1):
@@ -173,7 +195,9 @@ class GenAlgo:
         return child
     
     def __select_parents(self, tournament_size=5):
-        # De los individuos, escoge al mejor y lo regresa como padre. Hace esto dos veces
+        '''
+        Función para seleccionar a los padres. 
+        '''
         parents = []
         for _ in range(2):
             tournament = random.sample(self.__population, tournament_size)
