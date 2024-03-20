@@ -31,7 +31,7 @@ def calc_cost_gen(path, distances):
     return cost
 
 # Función para graficar las soluciones al problema
-def plot_sol(puntos, path):
+def plot_sol(puntos, path, savefig=""):
     x, y = puntos[path].T
     names = np.array(range(len(puntos)))
     names2 = names[path]
@@ -42,6 +42,9 @@ def plot_sol(puntos, path):
     
     for i, txt in enumerate(names2):
         ax.annotate(txt, (x[i], y[i]), xytext=(2, 5), textcoords='offset points')
+
+    if savefig != "":
+        plt.savefig("imgs/"+savefig)
 
 # Función para leer una instancia del folder
 def read_instance(instance):
