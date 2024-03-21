@@ -112,68 +112,88 @@ class GenAlgo:
     '''
     Metaheurística de un algoritmo genético para resolver el TSP.
     '''
-    def __init__(self, instance, pop_size=50, mutation_rate=0.05, num_gens=2000, tournament_size=5):
+    def __init__(self, instance, pop_size=50, mutation_rate=0.05, num_gens=2000, use_nn_seed=True):
         self.instance = instance
         self.res = None
         self.cost = None
         self.pop_size = pop_size
         self.mutation_rate = mutation_rate
         self.num_gens = num_gens
-        self.tournament_size = tournament_size
         self.__population = None
+        self.use_nn_seed = use_nn_seed
+        self.__nn_seed = None
     
     def solve(self, verbose=True):
         '''
-        Resuelve el problema del TSP con un algoritmo genético. Utiliza los parámetros que se definieron
-        al inicializar la clase.
+        Resuelve el problema del TSP con un algoritmo genético. Utiliza los 
+        parámetros que se definieron al inicializar la clase.
         '''
-        self.__init_pop() # inicializar población
-        for gen in range(self.num_gens): 
-            new_population = [] # la nueva población empieza vacía
-            for _ in range(self.pop_size // 2):
-                parent1, parent2 = self.__select_parents() # seleccionar a los padres
-                # Crear a los hijos
-                child1 = self.__crossover(parent1, parent2)
-                child2 = self.__crossover(parent2, parent1)
-                # Mutar a los hijos si es necesario
-                if random.random() < self.mutation_rate:
-                    child1 = self.__mutate(child1)
-                if random.random() < self.mutation_rate:
-                    child2 = self.__mutate(child2)
+        # inicializar población        
+        self.__init_pop()
 
-                # Insertar a los hijos en la población 
-                new_population.extend([child1, child2])
-            self.__population = new_population
+        for gen in range(self.num_gens):             
+            for i in range(self.pop_size-1):                 
+                # seleccionar a los padres
+                parent1 = self.__population[i]
+                parent2 = self.__population[i+1]
+                # Crear al hijo
+                child = self.__crossover(parent1, parent2)
+                
+                # Mutar al hijo si es necesario
+                if random.random() < self.mutation_rate:
+                    child = self.__mutate(child)
+
+                # Insertar al hijo en la población 
+                self.__population.append(child)
+
+            # ordenar a la población y seleccionar a los mejores
+            self.__population.sort(key=self.__calc_cost)
+            self.__population = self.__population[:self.pop_size]
+
             if gen % 10 == 0 and verbose:
-                best_individual = min(self.__population, key=lambda x: utils.calc_cost_gen(x, self.instance))
-                print(f"Generación {gen}: {utils.calc_cost_gen(best_individual, self.instance)}")
+                best_individual = self.__population[0]
+                print(f"Generación {gen}: {self.__calc_cost(best_individual)}")
 
         # escoger al mejor individuo
-        best_individual = min(self.__population, key=lambda x: utils.calc_cost_gen(x, self.instance))
+        best_individual = self.__population[0]        
         self.res = best_individual + [best_individual[0]] # Regresar al inicio
-        self.cost = utils.calc_cost_gen(best_individual, self.instance)
+        self.cost = self.__calc_cost(best_individual)
         if verbose:
             print(f"Solución encontrada con costo: {self.cost}")
 
     def __init_pop(self):
         '''
-        Función para inicializar la población. Inicializa aleatoriamente.
+        Función para inicializar la población. Inicializa aleatoriamente 
+        o con la solución del vecino más cercano, como se indique, y
+        luego los ordena según el costo de cada solución.
         '''
-        self.__population = []
-        num_cities = len(self.instance)
-        for _ in range(self.pop_size):
-            individual = list(range(num_cities))
-            random.shuffle(individual)
-            self.__population.append(individual)
+        if self.use_nn_seed:
+            nn = NearestNeigbour(self.instance)
+            nn.solve(start=0, verbose=False)
+            self.__nn_seed = nn.res[:-1]            
+            self.__population = [self.__nn_seed]
+            for i in range(self.pop_size-1):
+                individual = self.__mutate(self.__nn_seed)
+                self.__population.append(individual)
+        else:
+            self.__population = []
+            num_cities = len(self.instance)
+            for _ in range(self.pop_size):
+                individual = list(range(num_cities))
+                random.shuffle(individual)
+                self.__population.append(individual)
+        
+        self.__population.sort(key=self.__calc_cost)
 
     def __mutate(self, individual):
         '''
         Función para mutar a un individuo. Escoge dos ciudades aleatoriamente
         y las intercambia.
         '''
-        idx1, idx2 = random.sample(range(len(individual)), 2)
-        individual[idx1], individual[idx2] = individual[idx2], individual[idx1]
-        return individual
+        ind_copy = individual.copy()
+        idx1, idx2 = random.sample(range(len(ind_copy)), 2)
+        ind_copy[idx1], ind_copy[idx2] = ind_copy[idx2], ind_copy[idx1]
+        return ind_copy
     
     def __crossover(self, parent1, parent2):
         '''
@@ -192,14 +212,12 @@ class GenAlgo:
             if child[i] == -1:
                 child[i] = remaining[ptr]
                 ptr += 1
-        return child
-    
-    def __select_parents(self, tournament_size=5):
-        '''
-        Función para seleccionar a los padres. 
-        '''
-        parents = []
-        for _ in range(2):
-            tournament = random.sample(self.__population, tournament_size)
-            parents.append(min(tournament, key=lambda x: utils.calc_cost_gen(x, self.instance)))
-        return parents
+        return child        
+
+    def __calc_cost(self, individual):
+        cost = 0
+        for i in range(len(individual)-1):
+            cost += self.instance[individual[i], individual[i+1]]
+
+        cost += self.instance[individual[-1], individual[0]]
+        return cost
