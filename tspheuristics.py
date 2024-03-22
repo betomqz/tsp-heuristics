@@ -1,6 +1,5 @@
 import numpy as np
 import random
-import utils
 from mip import Model, xsum, minimize, BINARY
 from itertools import product
 
@@ -16,41 +15,51 @@ class TabuSearch:
         self.tabusize = tabusize
         self.maxiters = maxiters
 
-    def __calc_cost(self, individual):
-        cost = 0
-        for i in range(len(individual)-1):
-            cost += self.instance[individual[i], individual[i+1]]
-
-        cost += self.instance[individual[-1], individual[0]]
-        return cost
-
     def solve(self, verbose=True):
-        num_cities = len(self.instance)
-        current_solution = self.__init_sol(num_cities)
+        '''
+        Función para resolver un problema del TSP usando una
+        búsqueda Tabú.
+        '''
+
+        # Generar solución inicial
+        current_solution = self.__init_sol()
+        
+        # La mejor solución por ahora es la única que tenemos
         self.res = current_solution[:]
         self.cost = self.__calc_cost(self.res)
+        
+        # Arreglo para almacenar la lista tabú
         tabu_list = []
         iteration = 0
 
         if verbose:
-            print(f"Solución inicial encontrada con costo: {self.cost}")
+            print(f"Solución inicial encontrada con costo: {self.cost} en iter {iteration}")
         
         while iteration < self.maxiters:
+            
+            # Generar vecindad alrededor de la solución actual
             neighborhood = self.__generate_neighborhood(current_solution)
+            
+            # El mejor vecino de la vecindad empieza vacío
             best_neighbor = None
             best_neighbor_distance = np.inf
             
+            # Buscar al mejor vecino
             for neighbor in neighborhood:
                 neighbor_distance = self.__calc_cost(neighbor)
                 if neighbor not in tabu_list and neighbor_distance < best_neighbor_distance:
                     best_neighbor = neighbor
                     best_neighbor_distance = neighbor_distance
             
+            # Si el mejor vecino es mejor que la mejor solución, actualizar la
+            # mejor solución. De cualquier manera, guardarlo en la lista tabú.
             if best_neighbor:
                 current_solution = best_neighbor[:]
                 if best_neighbor_distance < self.cost:
                     self.res = best_neighbor[:]
                     self.cost = best_neighbor_distance
+                    if verbose:
+                        print(f"Solución inicial encontrada con costo: {self.cost} en iter {iteration}")
                 tabu_list.append(best_neighbor)
                 if len(tabu_list) > self.tabusize:
                     tabu_list.pop(0)
@@ -60,27 +69,47 @@ class TabuSearch:
         self.res = self.res + [self.res[0]] # Regresar al inicio        
         if verbose:
             print(f"Solución encontrada con costo: {self.cost}")
-        
-        # return best_solution, calculate_distance(cities, best_solution)
 
     def __init_sol(self):
+        '''
+        Función para generar una primera solución. Utiliza la 
+        heurística del vecino más cercano.
+        '''
         nn = NearestNeigbour(self.instance)
-        nn.solve()
+        nn.solve(start=0, verbose=False)
         return nn.res[:-1]
      
     def __generate_neighborhood(self, solution):
         '''
         Función para generar una vecindad a partir de 
-        una solución.
+        una solución. Similar al de mutación porque intercambia
+        dos ciudades de una solución dada.
         '''
         neighborhood = []
         num_cities = len(solution)
         for i in range(num_cities):
             for j in range(i + 1, num_cities):
+                # Crear una copia de la solución
                 neighbor = solution[:]
+
+                # Intercambiar ciudades
                 neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+                
+                # Agregar a la vecindad
                 neighborhood.append(neighbor)
+        
         return neighborhood
+    
+    def __calc_cost(self, individual):
+        '''
+        Función para calcular el costo de una solución
+        '''
+        cost = 0
+        for i in range(len(individual)-1):
+            cost += self.instance[individual[i], individual[i+1]]
+
+        cost += self.instance[individual[-1], individual[0]]
+        return cost
 
 
 class LinProg:
