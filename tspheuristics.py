@@ -4,6 +4,85 @@ import utils
 from mip import Model, xsum, minimize, BINARY
 from itertools import product
 
+class TabuSearch:
+    '''
+    Búsqueda tabú para resolver el TSP
+    '''
+
+    def __init__(self, instance, tabusize=10, maxiters=1000):
+        self.instance = instance
+        self.res = None
+        self.cost = None
+        self.tabusize = tabusize
+        self.maxiters = maxiters
+
+    def __calc_cost(self, individual):
+        cost = 0
+        for i in range(len(individual)-1):
+            cost += self.instance[individual[i], individual[i+1]]
+
+        cost += self.instance[individual[-1], individual[0]]
+        return cost
+
+    def solve(self, verbose=True):
+        num_cities = len(self.instance)
+        current_solution = self.__init_sol(num_cities)
+        self.res = current_solution[:]
+        self.cost = self.__calc_cost(self.res)
+        tabu_list = []
+        iteration = 0
+
+        if verbose:
+            print(f"Solución inicial encontrada con costo: {self.cost}")
+        
+        while iteration < self.maxiters:
+            neighborhood = self.__generate_neighborhood(current_solution)
+            best_neighbor = None
+            best_neighbor_distance = np.inf
+            
+            for neighbor in neighborhood:
+                neighbor_distance = self.__calc_cost(neighbor)
+                if neighbor not in tabu_list and neighbor_distance < best_neighbor_distance:
+                    best_neighbor = neighbor
+                    best_neighbor_distance = neighbor_distance
+            
+            if best_neighbor:
+                current_solution = best_neighbor[:]
+                if best_neighbor_distance < self.cost:
+                    self.res = best_neighbor[:]
+                    self.cost = best_neighbor_distance
+                tabu_list.append(best_neighbor)
+                if len(tabu_list) > self.tabusize:
+                    tabu_list.pop(0)
+            
+            iteration += 1
+        
+        self.res = self.res + [self.res[0]] # Regresar al inicio        
+        if verbose:
+            print(f"Solución encontrada con costo: {self.cost}")
+        
+        # return best_solution, calculate_distance(cities, best_solution)
+
+    def __init_sol(self):
+        nn = NearestNeigbour(self.instance)
+        nn.solve()
+        return nn.res[:-1]
+     
+    def __generate_neighborhood(self, solution):
+        '''
+        Función para generar una vecindad a partir de 
+        una solución.
+        '''
+        neighborhood = []
+        num_cities = len(solution)
+        for i in range(num_cities):
+            for j in range(i + 1, num_cities):
+                neighbor = solution[:]
+                neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+                neighborhood.append(neighbor)
+        return neighborhood
+
+
 class LinProg:
     '''
     Aunque no es una heurística, se incluye aquí el código para resolver el
@@ -131,8 +210,8 @@ class GenAlgo:
         # inicializar población        
         self.__init_pop()
 
-        for gen in range(self.num_gens):             
-            for i in range(self.pop_size-1):                 
+        for gen in range(self.num_gens):
+            for i in range(self.pop_size-1):
                 # seleccionar a los padres
                 parent1 = self.__population[i]
                 parent2 = self.__population[i+1]
@@ -155,7 +234,7 @@ class GenAlgo:
                 print(f"Generación {gen}: {self.__calc_cost(best_individual)}")
 
         # escoger al mejor individuo
-        best_individual = self.__population[0]        
+        best_individual = self.__population[0]
         self.res = best_individual + [best_individual[0]] # Regresar al inicio
         self.cost = self.__calc_cost(best_individual)
         if verbose:
@@ -170,7 +249,7 @@ class GenAlgo:
         if self.use_nn_seed:
             nn = NearestNeigbour(self.instance)
             nn.solve(start=0, verbose=False)
-            self.__nn_seed = nn.res[:-1]            
+            self.__nn_seed = nn.res[:-1]
             self.__population = [self.__nn_seed]
             for i in range(self.pop_size-1):
                 individual = self.__mutate(self.__nn_seed)

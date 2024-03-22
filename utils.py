@@ -1,15 +1,11 @@
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy.spatial.distance import pdist, squareform
 import os
 
 # Función para generar la matriz de distancias de un arreglo de coordenadas
 def dist_mat(coords):
-    n = len(coords)
-    res = np.zeros((n, n))
-    for i in range(n):
-        for j in range(n):
-            res[i][j] = np.linalg.norm(coords[i] - coords[j])
-    return res
+    return squareform(pdist(coords))
 
 # Función para calcular el costo (o distancia) de un camino dado.
 def calc_cost(path, distances):
@@ -46,5 +42,5 @@ def read_instance(instance):
             if line.strip() == "EOF":
                 break
             city = line.split()
-            cities.append([int(city[1]), int(city[2])])
+            cities.append([float(city[1]), float(city[2])])
     return np.array(cities)
